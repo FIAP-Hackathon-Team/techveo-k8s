@@ -63,7 +63,7 @@ metadata:
     app.kubernetes.io/part-of: techveo-system
 data:
   Email__FromAddress: "grupotechchallenge@gmail.com"
-
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
