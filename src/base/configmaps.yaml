@@ -29,6 +29,8 @@ data:
   Jwt__Issuer: "techveo-jwts"
   Jwt__Audience: "techveo"
   Authentication__ClientId: "management-service"
+  Storage__S3__BucketName: "techveo-dev"
+  Aws__Region: "us-east-1"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -46,7 +48,22 @@ data:
   Jwt__Issuer: "techveo-jwts"
   Jwt__Audience: "techveo"
   Authentication__ClientId: "processing-service"
+  Storage__S3__BucketName: "techveo-dev"
+  Aws__Region: "us-east-1"
+  Gemini__ModelId: "gemini-3-flash-preview"
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: techveo-notification-config
+  namespace: techveo
+  labels:
+    app.kubernetes.io/name: techveo-notification-config
+    app.kubernetes.io/component: config
+    app.kubernetes.io/part-of: techveo-system
+data:
+  Email__FromAddress: "grupotechchallenge@gmail.com"
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
