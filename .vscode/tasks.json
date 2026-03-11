@@ -1,0 +1,219 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "🐳 Build Docker Images",
+            "type": "shell",
+            "command": "${workspaceFolder}/build-images.bat",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "detail": "Executa o build das imagens Docker para o Minikube"
+        },
+        {
+            "label": "🚀 Deploy Application",
+            "type": "shell",
+            "command": "${workspaceFolder}/deploy.bat",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "detail": "Faz o deploy completo da aplicação TechVeo no Kubernetes"
+        },
+        {
+            "label": "✅ Validate Deployment",
+            "type": "shell",
+            "command": "${workspaceFolder}/validate.bat",
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "detail": "Valida se o deployment está funcionando corretamente"
+        },
+        {
+            "label": "🧹 Cleanup Resources",
+            "type": "shell",
+            "command": "${workspaceFolder}/cleanup.bat",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "detail": "Remove todos os recursos do Kubernetes e limpa o ambiente"
+        },
+        {
+            "label": "🔍 Kustomize Build (Development)",
+            "type": "shell",
+            "command": "kubectl",
+            "args": [
+                "kustomize",
+                "${workspaceFolder}/src/overlays/development/"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "detail": "Visualiza os manifestos processados pelo Kustomize"
+        },
+        {
+            "label": "📊 Get Pods Status",
+            "type": "shell",
+            "command": "kubectl",
+            "args": [
+                "get",
+                "pods",
+                "-n",
+                "techveo",
+                "-o",
+                "wide"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "detail": "Mostra o status detalhado dos pods"
+        },
+        {
+            "label": "📈 Get HPA Status",
+            "type": "shell",
+            "command": "kubectl",
+            "args": [
+                "get",
+                "hpa",
+                "-n",
+                "techveo"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "detail": "Mostra o status do Horizontal Pod Autoscaler"
+        },
+        {
+            "label": "🔧 Port Forward Nginx",
+            "type": "shell",
+            "command": "kubectl",
+            "args": [
+                "port-forward",
+                "service/techveo-nginx-service",
+                "30000:30000",
+                "-n",
+                "techveo"
+            ],
+            "group": "build",
+            "isBackground": true,
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [
+                {
+                    "pattern": [
+                        {
+                            "regexp": ".",
+                            "file": 1,
+                            "location": 2,
+                            "message": 3
+                        }
+                    ],
+                    "background": {
+                        "activeOnStart": true,
+                        "beginsPattern": ".",
+                        "endsPattern": "Forwarding from"
+                    }
+                }
+            ],
+            "detail": "Cria um port-forward para acessar a aplicação em localhost:30000"
+        },
+        {
+            "label": "📝 Watch Pod Logs (Order API)",
+            "type": "shell",
+            "command": "kubectl",
+            "args": [
+                "logs",
+                "-f",
+                "-l",
+                "app.kubernetes.io/name=techveo-order-api",
+                "-n",
+                "techveo"
+            ],
+            "group": "test",
+            "isBackground": true,
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "detail": "Monitora os logs da API em tempo real"
+        },
+        {
+            "label": "🖥️ Minikube Dashboard",
+            "type": "shell",
+            "command": "minikube",
+            "args": [
+                "dashboard"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "detail": "Abre o dashboard do Minikube no navegador"
+        }
+    ]
+}

@@ -1,0 +1,117 @@
+name: Deploy AWS Production - TechVeo API
+
+on:
+  push:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  CLUSTER_NAME: techveo-eks
+  NAMESPACE: techveo
+
+jobs:
+  deploy-production:
+    name: Deploy EKS Production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Download outputs.json
+        run: |
+          aws s3 cp s3://${{ vars.TF_BUCKET_NAME }}/outputs.json outputs.json && \
+          aws s3 cp s3://${{ vars.TF_BUCKET_NAME }}/db-outputs.json db-outputs.json
+
+      - name: Parse outputs.json
+        id: tf_outputs
+        run: |
+          NLB_TARGET_GROUP_ARN=$(jq -r '.nlb_target_group_arn.value' outputs.json)
+          RDS_ENDPOINT=$(jq -r '.rds_endpoint.value' db-outputs.json)
+          RDS_ENDPOINT="${RDS_ENDPOINT//:1433/,1433}"
+
+          API_GATEWAY_URL=$(jq -r '.api_gateway_url.value' outputs.json)
+          AUTH_API_INVOKE_URL=$(jq -r '.auth_api_invoke_url.value' outputs.json)
+
+          echo "nlb_target_group_arn=$NLB_TARGET_GROUP_ARN" >> $GITHUB_OUTPUT
+          echo "rds_endpoint=$RDS_ENDPOINT" >> $GITHUB_OUTPUT
+
+          echo "api_gateway_url=$API_GATEWAY_URL" >> $GITHUB_OUTPUT
+          echo "auth_api_invoke_url=$AUTH_API_INVOKE_URL" >> $GITHUB_OUTPUT
+
+      - name: Update Kube Config
+        run: |
+          aws eks update-kubeconfig \
+            --name ${{ env.CLUSTER_NAME }} \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'latest'
+
+      - name: Install NGINX Ingress Controller
+        run: |
+          # Instalar NGINX Ingress Controller se ainda não existir
+          if ! helm list -n ingress-nginx | grep -q ingress-nginx; then
+            echo "Installing NGINX Ingress Controller..."
+            chmod +x setup-ingress-eks.sh
+            export TARGET_GROUP_ARN="${{ steps.tf_outputs.outputs.nlb_target_group_arn }}"
+            ./setup-ingress-eks.sh
+          else
+            echo "NGINX Ingress Controller already installed, skipping..."
+          fi
+
+      - name: Apply Kubernetes Manifests and Update Secrets
+        run: |
+          # Aplicar manifests primeiro
+          kubectl apply -k src/base --validate=false
+
+          # Conexão do banco para o serviço management (se houver RDS configurado)
+          MANAGEMENT_CONN="Server=${{ steps.tf_outputs.outputs.rds_endpoint }};Database=techveo_management;User Id=${{ secrets.RDS_USERNAME }};Password=${{ secrets.RDS_PASSWORD }};TrustServerCertificate=True;"
+
+          # Conexão do banco para o serviço processing (usa o mesmo RDS)
+          PROCESSING_CONN="Server=${{ steps.tf_outputs.outputs.rds_endpoint }};Database=techveo_processing;User Id=${{ secrets.RDS_USERNAME }};Password=${{ secrets.RDS_PASSWORD }};TrustServerCertificate=True;"
+
+          # Atualizar config compartilhada com discovery dos serviços usados neste kustomize
+          kubectl patch configmap techveo-shared-config -n ${{ env.NAMESPACE }} \
+            --type='merge' \
+            --patch "$(jq -n --arg auth "${{ steps.tf_outputs.outputs.auth_api_invoke_url }}" \
+              --arg management "http://techveo-management-api-service.techveo.svc.cluster.local:8080" \
+              --arg rabbitHost "rabbitmq-service.techveo.svc.cluster.local" \
+              --arg rabbitPort "5672" \
+              '{data: {"Services__Authentication": $auth, "Services__Management": $management, "EventBus__RabbitMQ__HostName": $rabbitHost, "EventBus__RabbitMQ__Port": $rabbitPort}}')"
+
+          # Atualizar secrets compartilhados e de cada serviço presente em src/base
+          kubectl patch secret techveo-shared-secret -n ${{ env.NAMESPACE }} \
+            --type='merge' \
+            --patch "$(jq -n --arg jwtKey "${{ secrets.JWT_KEY }}" \
+              --arg rabbitUser "${{ secrets.RABBITMQ_USERNAME }}" \
+              --arg rabbitPass "${{ secrets.RABBITMQ_PASSWORD }}" \
+              '{stringData: {"Authentication__Jwt__Key": $jwtKey, "EventBus__RabbitMQ__UserName": $rabbitUser, "EventBus__RabbitMQ__Password": $rabbitPass}}')"
+
+          kubectl patch secret techveo-management-secret -n ${{ env.NAMESPACE }} \
+            --type='merge' \
+            --patch "$(jq -n --arg conn "${MANAGEMENT_CONN}" \
+              --arg secret "${{ secrets.MANAGEMENT_SERVICE_CLIENT_SECRET }}" \
+              '{stringData: {"ConnectionStrings__DataBaseConection": $conn, "Authentication__ClientSecret": $secret}}')"
+
+          kubectl patch secret techveo-processing-secret -n ${{ env.NAMESPACE }} \
+            --type='merge' \
+            --patch "$(jq -n --arg conn "${PROCESSING_CONN}" --arg secret "${{ secrets.PROCESSING_SERVICE_CLIENT_SECRET }}" '{stringData: {"ConnectionStrings__DataBaseConection": $conn, "Authentication__ClientSecret": $secret}}')"
+
+          kubectl patch secret techveo-notification-secret -n ${{ env.NAMESPACE }} \
+            --type='merge' \
+            --patch "$(jq -n --arg secret "${{ secrets.NOTIFICATION_SERVICE_CLIENT_SECRET }}" '{stringData: {"Authentication__ClientSecret": $secret}}')"
+
+      - name: Deployment Summary
+        run: |
+          echo "🎉 TechVeo Microservices deployed successfully!"
+          kubectl get pods -n ${{ env.NAMESPACE }}

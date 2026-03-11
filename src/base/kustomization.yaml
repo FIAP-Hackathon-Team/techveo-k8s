@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: techveo
+
+resources:
+  - namespace.yaml
+  - configmaps.yaml
+  - secrets.yaml
+  - rabbitmq.yaml
+  - techveo-management-api.yaml
+  - techveo-management-worker.yaml
+  - techveo-processing-worker.yaml
+  - techveo-notification-worker.yaml
+  - techveo-ingress.yaml
+  - hpa.yaml
+  # - monitoring.yaml

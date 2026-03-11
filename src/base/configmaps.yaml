@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: techveo-shared-config
+  namespace: techveo
+  labels:
+    app.kubernetes.io/name: techveo-shared-config
+    app.kubernetes.io/component: config
+    app.kubernetes.io/part-of: techveo-system
+data:
+  Services__Authentication: "https://leeo0xc7l4.execute-api.us-east-1.amazonaws.com/auth"
+  Services__Management: "http://techveo-management-api-service.techveo.svc.cluster.local:8080"
+  EventBus__RabbitMQ__HostName: "rabbitmq-service.techveo.svc.cluster.local"
+  EventBus__RabbitMQ__Port: "5672"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: techveo-management-config
+  namespace: techveo
+  labels:
+    app.kubernetes.io/name: techveo-management-config
+    app.kubernetes.io/component: config
+    app.kubernetes.io/part-of: techveo-system
+data:
+  ASPNETCORE_ENVIRONMENT: "Development"
+  ASPNETCORE_HTTP_PORTS: "8080"
+  AllowedHosts: "*"
+  Jwt__Issuer: "techveo-jwts"
+  Jwt__Audience: "techveo"
+  Authentication__ClientId: "management-service"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: techveo-processing-config
+  namespace: techveo
+  labels:
+    app.kubernetes.io/name: techveo-processing-config
+    app.kubernetes.io/component: config
+    app.kubernetes.io/part-of: techveo-system
+data:
+  ASPNETCORE_ENVIRONMENT: "Development"
+  ASPNETCORE_HTTP_PORTS: "8080"
+  AllowedHosts: "*"
+  Jwt__Issuer: "techveo-jwts"
+  Jwt__Audience: "techveo"
+  Authentication__ClientId: "processing-service"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: custom-headers
+  namespace: techveo
+  labels:
+    app.kubernetes.io/name: custom-headers
+    app.kubernetes.io/component: configmap
+    app.kubernetes.io/part-of: techveo-system
+data:
+  Host: "$host"
+  X-Real-IP: "$remote_addr"
+  X-Forwarded-For: "$proxy_add_x_forwarded_for"
+  X-Forwarded-Proto: "$scheme"
+  X-Forwarded-Host: "$host:$server_port"
+  X-Original-URI: "$request_uri"
+  X-Request-ID: "$req_id"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-configuration
+  namespace: ingress-nginx
+  labels:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/part-of: ingress-nginx
+data:
+  proxy-set-headers: "techveo/custom-headers"
+  use-forwarded-headers: "true"
+  compute-full-forwarded-for: "true"
+  use-proxy-protocol: "false"
+
+  proxy-connect-timeout: "30"
+  proxy-send-timeout: "30"
+  proxy-read-timeout: "30"
+  proxy-body-size: "10m"
+
+  http-snippet: |
+    map $http_x_forwarded_prefix $prefix {
+        default "";
+        "~^/api" "/api";
+    }
+
+  location-snippet: |
+    proxy_set_header X-Forwarded-Prefix $prefix;
+---

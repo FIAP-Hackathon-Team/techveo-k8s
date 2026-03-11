@@ -1,0 +1,85 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: techveo-ingress
+  namespace: techveo
+  labels:
+    app.kubernetes.io/name: techveo-ingress
+    app.kubernetes.io/component: ingress
+    app.kubernetes.io/part-of: techveo-system
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-set-headers: "techveo/custom-headers"
+    nginx.ingress.kubernetes.io/upstream-vhost: "$host"
+    nginx.ingress.kubernetes.io/use-forwarded-headers: "true"
+    # Rewrite para rota /api
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: techveo.local
+    http:
+      paths:
+      # Root path - redirect to web
+      - path: /
+        pathType: Exact
+        backend:
+          service:
+            name: techveo-web-service
+            port:
+              number: 80
+      # Admin application
+      - path: /web
+        pathType: Prefix
+        backend:
+          service:
+            name: techveo-web-service
+            port:
+              number: 80
+      # API endpoints (com rewrite)
+      - path: /api/management(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: techveo-management-api-service
+            port:
+              number: 8080
+      # Health check
+      - path: /health
+        pathType: Prefix
+        backend:
+          service:
+            name: techveo-management-api-service
+            port:
+              number: 8080
+  # Para acesso via IP local (opcional)
+  - http:
+      paths:
+      # Root path - redirect to web
+      - path: /
+        pathType: Exact
+        backend:
+          service:
+            name: techveo-web-service
+            port:
+              number: 80
+      # API endpoints
+      - path: /api/management(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: techveo-management-api-service
+            port:
+              number: 8080
+      # Health check
+      - path: /health
+        pathType: Prefix
+        backend:
+          service:
+            name: techveo-management-api-service
+            port:
+              number: 8080
