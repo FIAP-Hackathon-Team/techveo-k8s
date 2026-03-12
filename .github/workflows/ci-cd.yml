@@ -85,17 +85,24 @@ jobs:
             --type='merge' \
             --patch "$(jq -n --arg auth "${{ steps.tf_outputs.outputs.auth_api_invoke_url }}" \
               --arg management "http://techveo-management-api-service.techveo.svc.cluster.local:8080" \
-              --arg rabbitHost "rabbitmq-service.techveo.svc.cluster.local" \
-              --arg rabbitPort "5672" \
-              '{data: {"Services__Authentication": $auth, "Services__Management": $management, "EventBus__RabbitMQ__HostName": $rabbitHost, "EventBus__RabbitMQ__Port": $rabbitPort}}')"
+              --arg rabbitHost "${{ vars.RABBITMQ_HOSTNAME }}" \
+              --arg rabbitPort "${{ vars.RABBITMQ_PORT }}" \
+              --arg rabbitUser "${{ vars.RABBITMQ_USERNAME }}" \
+              --arg rabbitPass "${{ secrets.RABBITMQ_PASSWORD }}" \
+              '{data: {"Services__Authentication": $auth, "Services__Management": $management, "EventBus__RabbitMQ__HostName": $rabbitHost, "EventBus__RabbitMQ__Port": $rabbitPort, "EventBus__RabbitMQ__UserName": $rabbitUser, "EventBus__RabbitMQ__Password": $rabbitPass}}')"
 
           # Atualizar secrets compartilhados e de cada serviço presente em src/base
           kubectl patch secret techveo-shared-secret -n ${{ env.NAMESPACE }} \
             --type='merge' \
             --patch "$(jq -n --arg jwtKey "${{ secrets.JWT_KEY }}" \
-              --arg rabbitUser "${{ secrets.RABBITMQ_USERNAME }}" \
-              --arg rabbitPass "${{ secrets.RABBITMQ_PASSWORD }}" \
-              '{stringData: {"Authentication__Jwt__Key": $jwtKey, "EventBus__RabbitMQ__UserName": $rabbitUser, "EventBus__RabbitMQ__Password": $rabbitPass}}')"
+              --arg awsKey "${{ secrets.AWS_ACCESS_KEY_ID }}" \
+              --arg awsSecret "${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
+              --arg awsToken "${{ secrets.AWS_SESSION_TOKEN }}" \
+              '{stringData: {"Authentication__Jwt__Key": $jwtKey, "Aws__AccessKey": $awsKey, "Aws__SecretKey": $awsSecret, "Aws__SessionToken": $awsToken}}')"
+
+          kubectl patch configmap techveo-management-config -n ${{ env.NAMESPACE }} \
+            --type='merge' \
+            --patch "$(jq -n --arg bucket "${{ vars.STORAGE_BUCKET_NAME }}" '{data: {"Storage__S3__BucketName": $bucket}}')"
 
           kubectl patch secret techveo-management-secret -n ${{ env.NAMESPACE }} \
             --type='merge' \
@@ -103,13 +110,21 @@ jobs:
               --arg secret "${{ secrets.MANAGEMENT_SERVICE_CLIENT_SECRET }}" \
               '{stringData: {"ConnectionStrings__DataBaseConection": $conn, "Authentication__ClientSecret": $secret}}')"
 
+          kubectl patch configmap techveo-processing-config -n ${{ env.NAMESPACE }} \
+            --type='merge' \
+            --patch "$(jq -n --arg bucket "${{ vars.STORAGE_BUCKET_NAME }}" --arg model "${{ vars.PROCESSING_GEMINI_MODEL_ID }}" '{data: {"Storage__S3__BucketName": $bucket, "Gemini__ModelId": $model}}')"
+
           kubectl patch secret techveo-processing-secret -n ${{ env.NAMESPACE }} \
             --type='merge' \
-            --patch "$(jq -n --arg conn "${PROCESSING_CONN}" --arg secret "${{ secrets.PROCESSING_SERVICE_CLIENT_SECRET }}" '{stringData: {"ConnectionStrings__DataBaseConection": $conn, "Authentication__ClientSecret": $secret}}')"
+            --patch "$(jq -n --arg conn "${PROCESSING_CONN}" --arg secret "${{ secrets.PROCESSING_SERVICE_CLIENT_SECRET }}" --arg geminiApi "${{ secrets.PROCESSING_GEMINI_API_KEY }}" '{stringData: {"ConnectionStrings__DataBaseConection": $conn, "Authentication__ClientSecret": $secret, "Gemini__ApiKey": $geminiApi}}')"
+
+          kubectl patch configmap techveo-notification-config -n ${{ env.NAMESPACE }} \
+            --type='merge' \
+            --patch "$(jq -n --arg from "${{ vars.NOTIFICATION_FROM }}" '{data: {"Email__FromAddress": $from}}')"
 
           kubectl patch secret techveo-notification-secret -n ${{ env.NAMESPACE }} \
             --type='merge' \
-            --patch "$(jq -n --arg secret "${{ secrets.NOTIFICATION_SERVICE_CLIENT_SECRET }}" '{stringData: {"Authentication__ClientSecret": $secret}}')"
+            --patch "$(jq -n --arg secret "${{ secrets.NOTIFICATION_SERVICE_CLIENT_SECRET }}" --arg emailPass "${{ secrets.EMAIL_PASSWORD }}" '{stringData: {"Authentication__ClientSecret": $secret, "Email__Password": $emailPass}}')"
 
       - name: Deployment Summary
         run: |
