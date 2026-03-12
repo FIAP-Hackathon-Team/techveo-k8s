@@ -11,6 +11,7 @@ data:
   Services__Authentication: "https://leeo0xc7l4.execute-api.us-east-1.amazonaws.com/auth"
   Services__Management: "http://techveo-management-api-service.techveo.svc.cluster.local:8080"
   EventBus__RabbitMQ__HostName: "rabbitmq-service.techveo.svc.cluster.local"
+  EventBus__RabbitMQ__UserName: "guest"
   EventBus__RabbitMQ__Port: "5672"
   Aws__Region: "us-east-1"
 ---
