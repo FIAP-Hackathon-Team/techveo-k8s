@@ -32,8 +32,8 @@ spec:
           env:
             - name: RABBITMQ_DEFAULT_USER
               valueFrom:
-                secretKeyRef:
-                  name: techveo-shared-secret
+                configMapKeyRef:
+                  name: techveo-shared-config
                   key: EventBus__RabbitMQ__UserName
             - name: RABBITMQ_DEFAULT_PASS
               valueFrom:

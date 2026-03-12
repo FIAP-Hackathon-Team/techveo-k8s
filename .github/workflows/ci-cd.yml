@@ -88,8 +88,7 @@ jobs:
               --arg rabbitHost "${{ vars.RABBITMQ_HOSTNAME }}" \
               --arg rabbitPort "${{ vars.RABBITMQ_PORT }}" \
               --arg rabbitUser "${{ vars.RABBITMQ_USERNAME }}" \
-              --arg rabbitPass "${{ secrets.RABBITMQ_PASSWORD }}" \
-              '{data: {"Services__Authentication": $auth, "Services__Management": $management, "EventBus__RabbitMQ__HostName": $rabbitHost, "EventBus__RabbitMQ__Port": $rabbitPort, "EventBus__RabbitMQ__UserName": $rabbitUser, "EventBus__RabbitMQ__Password": $rabbitPass}}')"
+              '{data: {"Services__Authentication": $auth, "Services__Management": $management, "EventBus__RabbitMQ__HostName": $rabbitHost, "EventBus__RabbitMQ__Port": $rabbitPort, "EventBus__RabbitMQ__UserName": $rabbitUser}}')"
 
           # Atualizar secrets compartilhados e de cada serviço presente em src/base
           kubectl patch secret techveo-shared-secret -n ${{ env.NAMESPACE }} \
@@ -98,7 +97,8 @@ jobs:
               --arg awsKey "${{ secrets.AWS_ACCESS_KEY_ID }}" \
               --arg awsSecret "${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
               --arg awsToken "${{ secrets.AWS_SESSION_TOKEN }}" \
-              '{stringData: {"Authentication__Jwt__Key": $jwtKey, "Aws__AccessKey": $awsKey, "Aws__SecretKey": $awsSecret, "Aws__SessionToken": $awsToken}}')"
+              --arg rabbitPass "${{ secrets.RABBITMQ_PASSWORD }}" \
+              '{stringData: {"Authentication__Jwt__Key": $jwtKey, "Aws__AccessKey": $awsKey, "Aws__SecretKey": $awsSecret, "Aws__SessionToken": $awsToken, "EventBus__RabbitMQ__Password": $rabbitPass}}')"
 
           kubectl patch configmap techveo-management-config -n ${{ env.NAMESPACE }} \
             --type='merge' \
