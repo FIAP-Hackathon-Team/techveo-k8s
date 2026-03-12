@@ -126,6 +126,12 @@ jobs:
             --type='merge' \
             --patch "$(jq -n --arg secret "${{ secrets.NOTIFICATION_SERVICE_CLIENT_SECRET }}" --arg emailPass "${{ secrets.NOTIFICATION_EMAIL_PASSWORD }}" '{stringData: {"Authentication__ClientSecret": $secret, "Email__Password": $emailPass}}')"
 
+          # Patch Grafana domain from API Gateway URL
+          GRAFANA_DOMAIN=$(echo "${{ steps.tf_outputs.outputs.api_gateway_url }}" | sed 's|https://||' | sed 's|/.*||')
+          kubectl set env deployment/grafana -n ${{ env.NAMESPACE }} \
+            GF_SERVER_DOMAIN="${GRAFANA_DOMAIN}" \
+            GF_SERVER_ROOT_URL="https://${GRAFANA_DOMAIN}/grafana"
+
       - name: Deployment Summary
         run: |
           echo "🎉 TechVeo Microservices deployed successfully!"
