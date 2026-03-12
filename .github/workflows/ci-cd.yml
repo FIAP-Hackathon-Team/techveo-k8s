@@ -120,11 +120,11 @@ jobs:
 
           kubectl patch configmap techveo-notification-config -n ${{ env.NAMESPACE }} \
             --type='merge' \
-            --patch "$(jq -n --arg from "${{ vars.NOTIFICATION_FROM }}" '{data: {"Email__FromAddress": $from}}')"
+            --patch "$(jq -n --arg from "${{ vars.NOTIFICATION_EMAIL_FROM }}" '{data: {"Email__FromAddress": $from}}')"
 
           kubectl patch secret techveo-notification-secret -n ${{ env.NAMESPACE }} \
             --type='merge' \
-            --patch "$(jq -n --arg secret "${{ secrets.NOTIFICATION_SERVICE_CLIENT_SECRET }}" --arg emailPass "${{ secrets.EMAIL_PASSWORD }}" '{stringData: {"Authentication__ClientSecret": $secret, "Email__Password": $emailPass}}')"
+            --patch "$(jq -n --arg secret "${{ secrets.NOTIFICATION_SERVICE_CLIENT_SECRET }}" --arg emailPass "${{ secrets.NOTIFICATION_EMAIL_PASSWORD }}" '{stringData: {"Authentication__ClientSecret": $secret, "Email__Password": $emailPass}}')"
 
       - name: Deployment Summary
         run: |
