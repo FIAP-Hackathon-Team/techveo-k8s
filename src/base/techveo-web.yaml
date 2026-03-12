@@ -21,8 +21,8 @@ spec:
     spec:
       containers:
         - name: techveo-web
-          image: techveo.web:latest
-          imagePullPolicy: Never
+          image: grupotechchallenge/techveo-web:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 80
           livenessProbe:
