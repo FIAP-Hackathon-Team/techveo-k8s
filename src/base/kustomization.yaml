@@ -14,4 +14,4 @@ resources:
   - techveo-notification-worker.yaml
   - techveo-ingress.yaml
   - hpa.yaml
-  # - monitoring.yaml
+  - monitoring.yaml
