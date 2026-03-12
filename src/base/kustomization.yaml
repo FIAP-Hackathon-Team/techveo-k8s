@@ -8,7 +8,6 @@ resources:
   - configmaps.yaml
   - secrets.yaml
   - rabbitmq.yaml
-  - techveo-web.yaml
   - techveo-management-api.yaml
   - techveo-management-worker.yaml
   - techveo-processing-worker.yaml
