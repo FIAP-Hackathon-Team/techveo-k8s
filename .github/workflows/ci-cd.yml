@@ -71,6 +71,9 @@ jobs:
 
       - name: Apply Kubernetes Manifests and Update Secrets
         run: |
+          # Remover ingress legado antes de aplicar os novos (evita conflito de paths no admission webhook)
+          kubectl delete ingress techveo-ingress -n ${{ env.NAMESPACE }} --ignore-not-found=true
+
           # Aplicar manifests primeiro
           kubectl apply -k src/base --validate=false
 
