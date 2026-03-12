@@ -52,17 +52,17 @@ spec:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: techveo-processing-api-hpa
+  name: techveo-processing-worker-hpa
   namespace: techveo
   labels:
-    app.kubernetes.io/name: techveo-processing-api
+    app.kubernetes.io/name: techveo-processing-worker
     app.kubernetes.io/component: autoscaler
     app.kubernetes.io/part-of: techveo-system
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: techveo-processing-api
+    name: techveo-processing-worker
   minReplicas: 1
   maxReplicas: 3
   metrics:
