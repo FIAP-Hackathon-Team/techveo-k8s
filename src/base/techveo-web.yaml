@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/component: frontend
     app.kubernetes.io/part-of: techveo-system
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: techveo-web
