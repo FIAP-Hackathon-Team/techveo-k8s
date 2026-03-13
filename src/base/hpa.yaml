@@ -5,7 +5,7 @@ metadata:
   namespace: techveo
   labels:
     app.kubernetes.io/name: techveo-management-api
-    app.kubernetes.io/component: autoscaler
+    app.kubernetes.io/component: api
     app.kubernetes.io/part-of: techveo-system
 spec:
   scaleTargetRef:
