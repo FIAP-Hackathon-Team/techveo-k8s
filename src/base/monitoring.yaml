@@ -1,90 +1,40 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: prometheus-config
-  namespace: techveo
-  labels:
-    app.kubernetes.io/name: prometheus
-    app.kubernetes.io/component: monitoring
-    app.kubernetes.io/part-of: techveo-system
-data:
-  prometheus.yml: |
-    global:
-      scrape_interval: 15s
-      evaluation_interval: 15s
-
-    scrape_configs:
-      - job_name: 'kubernetes-pods'
-        kubernetes_sd_configs:
-          - role: pod
-            namespaces:
-              names:
-                - techveo
-        relabel_configs:
-          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
-            action: keep
-            regex: true
-          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
-            action: replace
-            target_label: __metrics_path__
-            regex: (.+)
-          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
-            action: replace
-            regex: ([^:]+)(?::\d+)?;(\d+)
-            replacement: $1:$2
-            target_label: __address__
-          - action: labelmap
-            regex: __meta_kubernetes_pod_label_(.+)
-          - source_labels: [__meta_kubernetes_namespace]
-            action: replace
-            target_label: kubernetes_namespace
-          - source_labels: [__meta_kubernetes_pod_name]
-            action: replace
-            target_label: kubernetes_pod_name
-
-      - job_name: 'kube-state-metrics'
-        static_configs:
-          - targets: ['kube-state-metrics-service.techveo.svc.cluster.local:8080']
----
+# ================================================================================
+# JAEGER ALL-IN-ONE (collector + query UI)
+# ================================================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: prometheus
+  name: jaeger
   namespace: techveo
   labels:
-    app.kubernetes.io/name: prometheus
-    app.kubernetes.io/component: monitoring
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: tracing
     app.kubernetes.io/part-of: techveo-system
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: prometheus
+      app.kubernetes.io/name: jaeger
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: prometheus
-        app.kubernetes.io/component: monitoring
+        app.kubernetes.io/name: jaeger
+        app.kubernetes.io/component: tracing
         app.kubernetes.io/part-of: techveo-system
     spec:
-      serviceAccountName: prometheus
       containers:
-        - name: prometheus
-          image: prom/prometheus:latest
-          args:
-            - "--config.file=/etc/prometheus/prometheus.yml"
-            - "--storage.tsdb.path=/prometheus/"
-            - "--web.console.libraries=/etc/prometheus/console_libraries"
-            - "--web.console.templates=/etc/prometheus/consoles"
-            - "--storage.tsdb.retention.time=200h"
-            - "--web.enable-lifecycle"
+        - name: jaeger
+          image: jaegertracing/all-in-one:1.55
+          env:
+            - name: COLLECTOR_OTLP_ENABLED
+              value: "true"
           ports:
-            - containerPort: 9090
-          volumeMounts:
-            - name: prometheus-config
-              mountPath: /etc/prometheus/
-            - name: prometheus-storage
-              mountPath: /prometheus/
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: otlp-http
+              containerPort: 4318
+            - name: query-ui
+              containerPort: 16686
           resources:
             requests:
               memory: "256Mi"
@@ -92,85 +42,46 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "200m"
-      volumes:
-        - name: prometheus-config
-          configMap:
-            name: prometheus-config
-        - name: prometheus-storage
-          emptyDir: {}
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: prometheus
-  namespace: techveo
-  labels:
-    app.kubernetes.io/name: prometheus
-    app.kubernetes.io/component: monitoring
-    app.kubernetes.io/part-of: techveo-system
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: prometheus
-  labels:
-    app.kubernetes.io/name: prometheus
-    app.kubernetes.io/component: monitoring
-    app.kubernetes.io/part-of: techveo-system
-rules:
-  - apiGroups: [""]
-    resources:
-      - nodes
-      - nodes/proxy
-      - nodes/metrics
-      - services
-      - endpoints
-      - pods
-    verbs: ["get", "list", "watch"]
-  - apiGroups:
-      - extensions
-    resources:
-      - ingresses
-    verbs: ["get", "list", "watch"]
-  - nonResourceURLs: ["/metrics"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: prometheus
-  labels:
-    app.kubernetes.io/name: prometheus
-    app.kubernetes.io/component: monitoring
-    app.kubernetes.io/part-of: techveo-system
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: prometheus
-subjects:
-  - kind: ServiceAccount
-    name: prometheus
-    namespace: techveo
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 16686
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 16686
+            initialDelaySeconds: 5
+            periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: prometheus-service
+  name: jaeger-service
   namespace: techveo
   labels:
-    app.kubernetes.io/name: prometheus
-    app.kubernetes.io/component: monitoring
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: tracing
     app.kubernetes.io/part-of: techveo-system
 spec:
-  ports:
-    - port: 9090
-      targetPort: 9090
-      protocol: TCP
-      name: web
   selector:
-    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/name: jaeger
   type: ClusterIP
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+    - name: query-ui
+      port: 16686
+      targetPort: query-ui
 ---
+# ================================================================================
+# GRAFANA
+# ================================================================================
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -184,10 +95,11 @@ data:
   datasources.yaml: |
     apiVersion: 1
     datasources:
-      - name: Prometheus
-        type: prometheus
+      - name: Jaeger
+        uid: jaeger
+        type: jaeger
         access: proxy
-        url: http://prometheus-service:9090
+        url: http://jaeger-service:16686
         isDefault: true
         editable: true
 ---
@@ -223,50 +135,42 @@ metadata:
     app.kubernetes.io/component: monitoring
     app.kubernetes.io/part-of: techveo-system
 data:
-  techveo-overview.json: |
+  techveo-traces.json: |
     {
-      "title": "Techveo Overview",
-      "uid": "techveo-overview",
+      "title": "Techveo Traces",
+      "uid": "techveo-traces",
       "schemaVersion": 38,
       "version": 1,
       "refresh": "30s",
       "panels": [
         {
           "id": 1,
-          "type": "stat",
-          "title": "Running Pods",
-          "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
-          "datasource": "Prometheus",
+          "type": "traces",
+          "title": "Management API - Recent Traces",
+          "gridPos": { "x": 0, "y": 0, "w": 24, "h": 16 },
+          "datasource": { "type": "jaeger", "uid": "jaeger" },
           "targets": [
             {
-              "expr": "count(kube_pod_status_phase{namespace=\"techveo\",phase=\"Running\"})",
-              "legendFormat": "Running Pods"
+              "datasource": { "type": "jaeger", "uid": "jaeger" },
+              "queryType": "search",
+              "refId": "A",
+              "service": "techveo-management-api",
+              "limit": 20
             }
           ]
         },
         {
           "id": 2,
-          "type": "timeseries",
-          "title": "CPU Usage by Pod",
-          "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
-          "datasource": "Prometheus",
+          "type": "traces",
+          "title": "All Services - Recent Traces",
+          "gridPos": { "x": 0, "y": 16, "w": 24, "h": 16 },
+          "datasource": { "type": "jaeger", "uid": "jaeger" },
           "targets": [
             {
-              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"techveo\",container!=\"\"}[5m])) by (pod)",
-              "legendFormat": "{{pod}}"
-            }
-          ]
-        },
-        {
-          "id": 3,
-          "type": "timeseries",
-          "title": "Memory Usage by Pod",
-          "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
-          "datasource": "Prometheus",
-          "targets": [
-            {
-              "expr": "sum(container_memory_working_set_bytes{namespace=\"techveo\",container!=\"\"}) by (pod)",
-              "legendFormat": "{{pod}}"
+              "datasource": { "type": "jaeger", "uid": "jaeger" },
+              "queryType": "search",
+              "refId": "A",
+              "limit": 20
             }
           ]
         }
@@ -379,156 +283,4 @@ spec:
       name: web
   selector:
     app.kubernetes.io/name: grafana
-  type: ClusterIP
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: kube-state-metrics
-  namespace: techveo
-  labels:
-    app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/component: monitoring
-    app.kubernetes.io/part-of: techveo-system
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: kube-state-metrics
-  labels:
-    app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/component: monitoring
-    app.kubernetes.io/part-of: techveo-system
-rules:
-  - apiGroups: [""]
-    resources:
-      - configmaps
-      - secrets
-      - nodes
-      - pods
-      - services
-      - serviceaccounts
-      - resourcequotas
-      - replicationcontrollers
-      - limitranges
-      - persistentvolumeclaims
-      - persistentvolumes
-      - namespaces
-      - endpoints
-    verbs: ["list", "watch"]
-  - apiGroups: ["apps"]
-    resources:
-      - statefulsets
-      - daemonsets
-      - deployments
-      - replicasets
-    verbs: ["list", "watch"]
-  - apiGroups: ["batch"]
-    resources:
-      - cronjobs
-      - jobs
-    verbs: ["list", "watch"]
-  - apiGroups: ["autoscaling"]
-    resources:
-      - horizontalpodautoscalers
-    verbs: ["list", "watch"]
-  - apiGroups: ["policy"]
-    resources:
-      - poddisruptionbudgets
-    verbs: ["list", "watch"]
-  - apiGroups: ["storage.k8s.io"]
-    resources:
-      - storageclasses
-      - volumeattachments
-    verbs: ["list", "watch"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: kube-state-metrics
-  labels:
-    app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/component: monitoring
-    app.kubernetes.io/part-of: techveo-system
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: kube-state-metrics
-subjects:
-  - kind: ServiceAccount
-    name: kube-state-metrics
-    namespace: techveo
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: kube-state-metrics
-  namespace: techveo
-  labels:
-    app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/component: monitoring
-    app.kubernetes.io/part-of: techveo-system
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: kube-state-metrics
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: kube-state-metrics
-        app.kubernetes.io/component: monitoring
-        app.kubernetes.io/part-of: techveo-system
-    spec:
-      serviceAccountName: kube-state-metrics
-      containers:
-        - name: kube-state-metrics
-          image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.12.0
-          ports:
-            - name: http-metrics
-              containerPort: 8080
-            - name: telemetry
-              containerPort: 8081
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: 8080
-            initialDelaySeconds: 5
-            timeoutSeconds: 5
-          readinessProbe:
-            httpGet:
-              path: /
-              port: 8081
-            initialDelaySeconds: 5
-            timeoutSeconds: 5
-          resources:
-            requests:
-              memory: "64Mi"
-              cpu: "50m"
-            limits:
-              memory: "128Mi"
-              cpu: "100m"
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 65534
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: kube-state-metrics-service
-  namespace: techveo
-  labels:
-    app.kubernetes.io/name: kube-state-metrics
-    app.kubernetes.io/component: monitoring
-    app.kubernetes.io/part-of: techveo-system
-spec:
-  ports:
-    - name: http-metrics
-      port: 8080
-      targetPort: http-metrics
-    - name: telemetry
-      port: 8081
-      targetPort: telemetry
-  selector:
-    app.kubernetes.io/name: kube-state-metrics
   type: ClusterIP
